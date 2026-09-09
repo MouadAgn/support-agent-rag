@@ -39,38 +39,49 @@ Un graphe [LangGraph](src/support_agent/agent/graph.py) à six étapes, chacune 
 | **handle_fallback** | Déclenche l'outil adapté : `create_ticket` ou `escalate_to_agent` |
 | **finalize** | Chiffre le coût en tokens de la réponse et le compare au coût humain |
 
-**Trois choix d'architecture qui comptent :**
+**Quatre choix d'architecture qui comptent :**
 
 - **La recherche tourne en local, seule la rédaction part chez DeepSeek.** Les embeddings (`sentence-transformers`) sont calculés sur la machine : gratuits, rapides, et les documents ne quittent pas l'infrastructure. DeepSeek ne voit que les 4 extraits nécessaires.
 - **Le routage ticket/escalade est déterministe, pas confié au LLM.** Sur une décision d'escalade, un client fraudé mis en file asynchrone est un incident. Une règle explicite est auditable et gratuite. Les actions sont déjà encapsulées en outils LangChain (`@tool`) pour basculer en tool-calling le jour où la taxonomie l'exige.
+- **Pour une FAQ, on indexe la question, pas la question + la réponse.** Le client pose une question : comparer une question à une question est bien plus précis que la comparer à un bloc où la réponse dilue le sens. Le LLM reçoit quand même la réponse complète comme contexte. Gain mesuré : rappel@1 de 9/20 à 14/20.
 - **Quand `grade` rejette — ou quand le triage reconnaît une salutation — zéro token est dépensé.** Les garde-fous sont aussi des optimisations de coût.
 
 ## Résultats mesurés
 
-13 questions réelles, reformulées différemment de la FAQ, sur `deepseek-v4-pro`.
+23 messages réels, tous reformulés différemment de la FAQ, sur `deepseek-v4-pro`.
 
 | | Résultat |
 |---|---|
-| **Questions hors périmètre déviées vers un humain** | **5 / 5** |
+| **Questions hors périmètre déviées vers un humain** | **4 / 4** |
 | **Réponses inventées (hallucinations)** | **0** |
-| Routage urgence correct (litige, fraude → appel) | 2 / 2 |
-| Questions du périmètre auxquelles l'agent répond | 5 / 8 |
-| Bon passage retrouvé par la recherche | 8 / 8 (score 0,38 – 0,63) |
-| Coût moyen d'une réponse | **0,0017 €** |
-| Latence médiane bout en bout | 2,8 s *(recherche seule : 141 ms)* |
-| Tests automatisés | 28 ✅ |
+| Questions du périmètre traitées | **12 / 12** |
+| Urgences et litiges escaladés vers un appel | 2 / 2 |
+| Salutations traitées sans appel au modèle | 5 / 5 *(0 token, 2 ms)* |
+| Bon passage dans les 4 résultats de recherche | 17 / 20 |
+| Coût moyen d'une réponse | **0,0014 €** |
+| Latence médiane bout en bout | 3,3 s |
+| Tests automatisés | 31 ✅ |
 
-**Ce que ces chiffres disent vraiment.** Le résultat qui compte est le premier : sur « quel est votre chiffre d'affaires ? » ou « quelle est la composition chimique de vos t-shirts ? », l'agent n'a jamais bluffé. Il a ouvert un ticket.
+**Ce que ces chiffres disent vraiment.** Le résultat qui compte est le premier : sur « quel est votre chiffre d'affaires ? » ou « quelle est la composition chimique de vos t-shirts ? », l'agent n'a jamais bluffé — il a ouvert un ticket.
 
-Le prix de cette prudence est visible ligne 5 : **l'agent refuse aussi 3 questions qu'il aurait pu traiter.** Exemple, « vous expédiez en Belgique ? » — la FAQ dit « la plupart des pays de l'UE » sans nommer la Belgique, et l'agent a préféré passer la main. C'est un arbitrage assumé : pour un support client, un faux refus coûte un ticket, une fausse réponse coûte un litige.
+Le second est le plus instructif sur la démarche. La couverture était de **8/12**, et le coupable n'était ni le prompt ni la taille du corpus : c'était le modèle d'embeddings. `all-MiniLM-L6-v2`, entraîné sur de l'anglais, comparait des mots plutôt que du sens — « justificatif pour ma **compta** » remontait « Comment créer un **compte** ? ». Un jeu de 20 reformulations annotées a permis de comparer quatre configurations :
 
-> ⚠️ Corpus de démonstration : 10 entrées de FAQ + 1 PDF (13 passages indexés). Les chiffres valident le comportement du pipeline, pas une performance à l'échelle d'une vraie base documentaire.
+| Configuration | rappel@1 | rappel@4 |
+|---|---|---|
+| MiniLM anglais, question + réponse indexées | 9/20 | 11/20 |
+| MiniLM anglais, question seule indexée | 9/20 | 14/20 |
+| Multilingue, question + réponse indexées | 9/20 | 17/20 |
+| **Multilingue, question seule indexée** | **14/20** | **17/20** |
+
+Le passage au modèle multilingue et l'indexation sur la question portent la couverture à **12/12**, sans toucher au prompt.
+
+> ⚠️ Corpus de démonstration : 33 entrées de FAQ + 1 PDF de CGV, soit 36 passages indexés. Les chiffres valident le comportement du pipeline, pas une performance à l'échelle d'une base documentaire réelle.
 
 ## Le modèle économique
 
-Une réponse coûte **0,0017 €**. Un ticket traité par un humain est estimé à **5 €**.
+Une réponse coûte **0,0014 €**. Un ticket traité par un humain est estimé à **5 €**.
 
-> Environ **2 900 réponses automatiques** pour le prix d'un seul ticket humain.
+> Environ **3 500 réponses automatiques** pour le prix d'un seul ticket humain.
 
 Le coût est calculé sur les tokens réellement facturés par l'API (`prompt_tokens` / `completion_tokens`), aux tarifs officiels DeepSeek convertis en euros — pas sur une estimation. Voir [`cost/tracker.py`](src/support_agent/cost/tracker.py).
 
@@ -78,10 +89,11 @@ Le coût est calculé sur les tokens réellement facturés par l'API (`prompt_to
 
 ## Limites connues
 
-- **Le seuil de pertinence ne filtre rien en pratique.** À `0.20`, il n'a rejeté aucune des 13 questions (scores mesurés : 0,33 à 0,63). C'est le prompt strict qui fait tout le travail de refus. Le seuil doit être recalibré sur un jeu de questions étiquetées.
+- **Le seuil de pertinence ne filtre toujours rien.** À `0.20`, il ne rejette aucun message : les questions hors périmètre marquent 0,27 à 0,34, les questions couvertes 0,28 à 0,79. La séparation s'est améliorée avec le modèle multilingue, mais les deux plages se chevauchent encore — un seuil unique ne peut pas les trancher. C'est le prompt strict qui fait le travail de refus. Il faudrait recalibrer sur un jeu étiqueté plus large, ou remplacer le seuil par un classifieur.
 - **`deepseek-v4-pro` est un modèle à raisonnement** : sur 6 appels mesurés, **83 % des tokens de sortie facturés** (71 % à 98 %) sont des tokens de raisonnement que personne ne voit. La sortie étant le poste le plus cher, on paie du raisonnement pour reformuler une FAQ — `deepseek-v4-flash` serait ~3× moins cher.
 - **Le cache de prompt DeepSeek n'est pas exploité** (input mis en cache facturé 30× moins). Le prompt système est identique à chaque requête : gain immédiat disponible.
-- **`all-MiniLM-L6-v2` est entraîné principalement sur de l'anglais** alors que le corpus est en français. Un modèle multilingue améliorerait la recherche.
+- **La recherche rate encore 3 reformulations sur 20**, malgré le modèle multilingue — par exemple « on m'a envoyé autre chose que ce que j'ai commandé ». Une recherche hybride (dense + lexicale) ou un re-ranking corrigeraient une partie de ces cas.
+- **Indexer la question seule a un revers** : un terme qui n'existe que dans la réponse devient moins retrouvable. Ici « Belgique » n'apparaît que dans la réponse sur l'international, et la question fonctionne quand même — mais le compromis est réel.
 - **Le routage d'urgence est lexical** : il ne détecte pas l'implicite (« on m'a prélevé deux fois » sans mot-clé d'urgence) ni les fautes de frappe.
 - **Pas de mémoire conversationnelle** : chaque question est traitée isolément.
 - **Détection de refus fragile** : `"INSUFFISANT" in texte` rejette aussi une réponse valide qui citerait le mot. Une sortie structurée serait plus robuste.
@@ -104,6 +116,9 @@ TOP_K=4                        # passages envoyés au modèle
 SCORE_THRESHOLD=0.20           # seuil de pertinence (garde-fou)
 CHUNK_SIZE=800                 # taille des morceaux, en caractères
 CHUNK_OVERLAP=120
+
+# modèle d'embeddings, local et gratuit (multilingue : le corpus est en français)
+EMBEDDINGS_MODEL=sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2
 
 PRICE_INPUT_PER_M=1.135        # € par million de tokens en entrée
 PRICE_OUTPUT_PER_M=3.406       # € par million de tokens en sortie

@@ -83,7 +83,11 @@ class VectorStore:
         if not chunks:
             raise ValueError("Aucun chunk a indexer : lance d'abord l'ingestion.")
         embedder = Embedder(backend, model_name)
-        vectors = embedder.fit_transform([c["text"] for c in chunks])
+        # On indexe `embed_text` quand il existe (la question, pour une FAQ) et
+        # `text` sinon. Le contexte rendu au LLM reste toujours `text` complet.
+        vectors = embedder.fit_transform(
+            [c.get("embed_text") or c["text"] for c in chunks]
+        )
         index = faiss.IndexFlatIP(vectors.shape[1])
         index.add(vectors)
         return cls(embedder, chunks, index)

@@ -108,9 +108,26 @@ class FakeLLM:
         m = re.search(rf"{tag}\s*:?\s*\n?(.*?)(?:\n[A-ZÉÈ]{{4,}}\s*:|\Z)", text, re.S)
         return m.group(1).strip() if m else ""
 
+    # Mots interrogatifs et mots outils : presents dans presque toutes les
+    # entrees de FAQ, ils feraient matcher n'importe quelle question. Sans ce
+    # filtre, "Quelle est la capitale de l'Australie ?" matchait "Quelle est
+    # la garantie sur les produits ?" sur le seul mot "quelle".
+    _MOTS_OUTILS = frozenset({
+        "quel", "quels", "quelle", "quelles", "comment", "pourquoi", "combien",
+        "quand", "esce", "votre", "votres", "vos", "vous", "avec", "dans",
+        "pour", "cette", "cettes", "faire", "puis", "peut", "peux", "plus",
+        "tout", "tous", "toute", "sont", "suis", "etes", "avez", "mais",
+        "reponse", "question", "sans", "elle", "leur", "nous",
+    })
+
     @staticmethod
     def _best_passage(context: str, question: str) -> str:
-        q_words = {w.lower() for w in re.findall(r"\w+", question) if len(w) > 3}
+        q_words = {
+            w.lower() for w in re.findall(r"\w+", question)
+            if len(w) > 3 and w.lower() not in FakeLLM._MOTS_OUTILS
+        }
+        if not q_words:
+            return ""
         best, best_score = "", 0
         for line in re.split(r"(?<=[.!?])\s+|\n", context):
             line = line.strip(" -•\t")

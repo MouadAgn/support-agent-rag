@@ -50,8 +50,12 @@ class Settings:
 
     # --- Embeddings ---
     embeddings_backend: str = os.getenv("EMBEDDINGS_BACKEND", "sentence-transformers").strip()
+    # Modele multilingue : le corpus est en francais. all-MiniLM-L6-v2, entraine
+    # sur de l'anglais, matchait sur la ressemblance des mots ("compta" ->
+    # "compte") plutot que sur le sens. Rappel@4 mesure : 11/20 -> 17/20.
     embeddings_model: str = os.getenv(
-        "EMBEDDINGS_MODEL", "sentence-transformers/all-MiniLM-L6-v2"
+        "EMBEDDINGS_MODEL",
+        "sentence-transformers/paraphrase-multilingual-MiniLM-L12-v2",
     ).strip()
 
     # --- Couts (EUR) ---

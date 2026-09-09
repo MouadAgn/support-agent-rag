@@ -24,12 +24,21 @@ import unicodedata
 # Mots de politesse, par famille : chacune a sa reponse.
 SALUTATIONS = {
     "bonjour", "salut", "bonsoir", "coucou", "hello", "hey", "hi", "yo",
-    "slt", "bjr", "bsr", "cc", "allo", "re",
+    "slt", "bjr", "bsr", "cc", "allo", "re", "salu", "wesh", "bonjr",
+    # "ca va" et son abreviation SMS : une prise de contact, pas une demande
+    "cava", "cv",
 }
-REMERCIEMENTS = {"merci", "mercis", "thanks", "thank", "thx", "mci", "nickel", "parfait"}
+REMERCIEMENTS = {"merci", "mercis", "thanks", "thank", "thx", "mci"}
+
+# Acquiescements : le client valide, il n'attend pas de recherche documentaire.
+ACQUIESCEMENTS = {
+    "ok", "oki", "okay", "dac", "dacord", "daccord", "cool", "super", "top",
+    "genial", "parfait", "nickel", "impeccable", "impec", "tresbien",
+    "camarche", "bien", "compris", "entendu",
+}
 ADIEUX = {
     "aurevoir", "revoir", "bye", "ciao", "adieu",
-    "bonnejournee", "bonnesoiree", "abientot", "aplus",
+    "bonnejournee", "bonnesoiree", "bonnenuit", "abientot", "aplus", "ademain",
 }
 
 # Locutions en plusieurs mots : le decoupage les separerait et on perdrait
@@ -37,12 +46,18 @@ ADIEUX = {
 LOCUTIONS = {
     ("bonne", "journee"): "bonnejournee",
     ("bonne", "soiree"): "bonnesoiree",
+    ("bonne", "nuit"): "bonnenuit",
     ("au", "revoir"): "aurevoir",
     ("a", "bientot"): "abientot",
     ("a", "plus"): "aplus",
+    ("a", "demain"): "ademain",
+    ("ca", "va"): "cava",
+    ("ca", "marche"): "camarche",
+    ("tres", "bien"): "tresbien",
+    ("d", "accord"): "daccord",
 }
 
-POLITESSE = SALUTATIONS | REMERCIEMENTS | ADIEUX
+POLITESSE = SALUTATIONS | REMERCIEMENTS | ACQUIESCEMENTS | ADIEUX
 
 # Mots vides : sans valeur informative, ils ne suffisent pas a faire une demande.
 MOTS_VIDES = {
@@ -65,6 +80,9 @@ REPONSES = {
     ),
     "remerciement": (
         "Avec plaisir. N'hesitez pas si vous avez une autre question."
+    ),
+    "acquiescement": (
+        "Tres bien. Je reste a votre disposition si vous avez une question."
     ),
     "adieu": (
         "Bonne journee ! Je reste disponible si vous avez besoin d'aide."
@@ -94,7 +112,8 @@ def _normaliser(texte: str) -> list[str]:
 
 def detecter_conversation(question: str) -> str | None:
     """Renvoie la famille de politesse ("salutation", "remerciement",
-    "adieu") si le message n'est que de la conversation, sinon None.
+    "acquiescement", "adieu") si le message n'est que de la conversation,
+    sinon None.
     """
     mots = _normaliser(question)
     if not mots or len(mots) > MAX_MOTS_CONVERSATION:
@@ -107,6 +126,8 @@ def detecter_conversation(question: str) -> str | None:
             familles.append("salutation")
         elif mot in REMERCIEMENTS:
             familles.append("remerciement")
+        elif mot in ACQUIESCEMENTS:
+            familles.append("acquiescement")
         elif mot in ADIEUX:
             familles.append("adieu")
         elif mot not in MOTS_VIDES:
