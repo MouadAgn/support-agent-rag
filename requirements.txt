@@ -16,6 +16,10 @@ sentence-transformers>=2.6
 pypdf>=4.0                 # extraction texte des PDF
 reportlab>=4.0            # generation du PDF d'exemple
 
+# Interface web de demonstration (visualisation live du pipeline)
+fastapi>=0.110
+uvicorn>=0.29
+
 # Outils
 python-dotenv>=1.0
 tiktoken>=0.7             # comptage des tokens

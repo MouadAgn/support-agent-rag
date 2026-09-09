@@ -1,0 +1,189 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Agent de support — Démo</title>
+<style>
+  :root{
+    --bg:#0e141b; --card:#161f29; --card2:#1d2833; --line:#2a3743;
+    --ink:#e6edf3; --muted:#8b98a5; --teal:#4bb3b8; --teal-d:#3a9299;
+    --green:#3fb950; --amber:#d29922; --red:#f85149;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{background:var(--bg);color:var(--ink);
+       font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+       line-height:1.5;min-height:100vh;}
+  .wrap{max-width:860px;margin:0 auto;padding:24px 18px 60px;}
+  header{display:flex;align-items:center;justify-content:space-between;
+         gap:12px;flex-wrap:wrap;margin-bottom:6px;}
+  h1{font-size:20px;font-weight:800;}
+  h1 span{color:var(--teal);}
+  .badge{font-size:12px;color:var(--muted);border:1px solid var(--line);
+         padding:4px 10px;border-radius:999px;}
+  .badge b{color:var(--teal);}
+  .sub{color:var(--muted);font-size:13px;margin-bottom:18px;}
+
+  .askbar{display:flex;gap:8px;margin-bottom:10px;}
+  input[type=text]{flex:1;background:var(--card);border:1px solid var(--line);
+       color:var(--ink);padding:12px 14px;border-radius:10px;font-size:15px;outline:none;}
+  input[type=text]:focus{border-color:var(--teal);}
+  button{background:var(--teal);color:#06222330;border:none;color:#052027;
+       font-weight:700;padding:0 18px;border-radius:10px;cursor:pointer;font-size:15px;}
+  button:disabled{opacity:.5;cursor:default;}
+  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px;}
+  .chip{font-size:12.5px;color:var(--muted);background:var(--card);
+       border:1px solid var(--line);padding:6px 11px;border-radius:999px;cursor:pointer;}
+  .chip:hover{border-color:var(--teal);color:var(--ink);}
+
+  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
+        padding:16px 18px;margin-bottom:16px;}
+  .qline{color:var(--muted);font-size:13px;margin-bottom:4px;}
+  .qtext{font-size:16px;font-weight:600;}
+
+  .pipe-title{font-size:12px;letter-spacing:.6px;text-transform:uppercase;
+        color:var(--muted);margin-bottom:12px;}
+  .step{display:flex;gap:12px;align-items:flex-start;padding:8px 0;
+        opacity:0;transform:translateY(6px);animation:in .28s forwards;}
+  @keyframes in{to{opacity:1;transform:none;}}
+  .dot{flex:none;width:26px;height:26px;border-radius:50%;background:var(--card2);
+       border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
+       font-size:13px;font-weight:700;color:var(--teal);}
+  .step.ok .dot{background:var(--teal);color:#052027;border-color:var(--teal);}
+  .step .lbl{font-weight:600;font-size:14px;}
+  .step .det{color:var(--muted);font-size:12.5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
+  .spin{width:26px;height:26px;border:2px solid var(--line);border-top-color:var(--teal);
+        border-radius:50%;animation:sp .7s linear infinite;}
+  @keyframes sp{to{transform:rotate(360deg);}}
+
+  .answer{background:var(--card2);border-left:3px solid var(--teal);
+          padding:14px 16px;border-radius:8px;margin-top:4px;font-size:15.5px;}
+  .meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:center;}
+  .pill{font-size:12.5px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);}
+  .pill.dec-answered{background:#12331b;border-color:#1f6f2e;color:#7ee787;}
+  .pill.dec-ticket{background:#33280c;border-color:#8a6d1c;color:#f2cc60;}
+  .pill.dec-escalate{background:#3a1416;border-color:#8a2c2c;color:#ff9a92;}
+  .src{color:var(--muted);font-size:12.5px;}
+  .cost{margin-top:12px;background:#0d1620;border:1px solid var(--line);border-radius:10px;
+        padding:12px 14px;font-size:13.5px;}
+  .cost .big{color:var(--teal);font-weight:800;font-size:16px;}
+  .cost .save{color:var(--green);font-weight:700;}
+  .hidden{display:none;}
+  .foot{color:var(--muted);font-size:12px;text-align:center;margin-top:24px;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Agent de support <span>· LangGraph + RAG</span></h1>
+    <div class="badge">Modèle : <b id="mode">…</b></div>
+  </header>
+  <div class="sub">Pose une question. Tu vois en direct chaque étape : recherche, contrôle qualité, génération, décision, coût.</div>
+
+  <div class="askbar">
+    <input id="q" type="text" placeholder="Ex : Quels sont les délais de livraison ?" autocomplete="off">
+    <button id="send">Envoyer</button>
+  </div>
+  <div class="chips" id="chips"></div>
+
+  <div id="conv"></div>
+
+  <div class="foot">Projet démo — l'agent répond depuis la FAQ et les PDF, sinon il ouvre un ticket ou escalade vers un téléconseiller.</div>
+</div>
+
+<script>
+const NODES = {
+  retrieve:        {n:1, label:"Recherche (RAG)"},
+  grade:           {n:2, label:"Contrôle qualité du contexte"},
+  generate:        {n:3, label:"Génération (LLM)"},
+  handle_fallback: {n:3, label:"Routage vers un humain"},
+  finalize:        {n:4, label:"Calcul du coût"},
+};
+const DEC = {answered:"Répondu par l'agent", ticket:"Ticket ouvert", escalate:"Escalade téléconseiller"};
+const EXAMPLES = [
+  "Quels sont les délais de livraison ?",
+  "Comment retourner un article ?",
+  "Est-ce que vous vendez des billets d'avion ?",
+  "Paiement bloqué, c'est urgent, litige, je veux un remboursement",
+];
+
+const $ = s => document.querySelector(s);
+const conv = $("#conv"), input = $("#q"), send = $("#send");
+
+fetch("/api/config").then(r=>r.json()).then(c=>{ $("#mode").textContent = c.mode; });
+
+const chips = $("#chips");
+EXAMPLES.forEach(t=>{
+  const c=document.createElement("span"); c.className="chip"; c.textContent=t;
+  c.onclick=()=>{ input.value=t; run(); };
+  chips.appendChild(c);
+});
+
+let busy=false;
+function run(){
+  const question=input.value.trim();
+  if(!question||busy) return;
+  busy=true; send.disabled=true;
+
+  const card=document.createElement("div"); card.className="card";
+  card.innerHTML=`<div class="qline">Question</div><div class="qtext"></div>
+    <div class="pipe-title" style="margin-top:14px">Pipeline en direct</div>
+    <div class="steps"></div>`;
+  card.querySelector(".qtext").textContent=question;
+  conv.prepend(card);
+  const steps=card.querySelector(".steps");
+
+  // ligne "en cours"
+  const live=document.createElement("div"); live.className="step";
+  live.innerHTML=`<div class="spin"></div><div><div class="lbl">Traitement…</div></div>`;
+  steps.appendChild(live);
+
+  const es=new EventSource("/api/ask?question="+encodeURIComponent(question));
+  es.onmessage=(e)=>{
+    const d=JSON.parse(e.data);
+    if(d.type==="step"){
+      const meta=NODES[d.node]||{n:"•",label:d.node};
+      const el=document.createElement("div"); el.className="step ok";
+      el.innerHTML=`<div class="dot">${meta.n}</div>
+        <div><div class="lbl">${meta.label}</div><div class="det"></div></div>`;
+      el.querySelector(".det").textContent=d.detail||"";
+      steps.insertBefore(el, live);
+    } else if(d.type==="done"){
+      live.remove(); es.close(); busy=false; send.disabled=false;
+      const dec=d.decision||"answered";
+      const cost=d.cost||{};
+      const wrap=document.createElement("div");
+      let costHtml="";
+      if(cost.resolution==="answered"){
+        costHtml=`<span class="big">${(cost.llm_cost_eur||0).toFixed(5)} €</span> pour cette réponse
+          &nbsp;·&nbsp; ${cost.input_tokens||0} + ${cost.output_tokens||0} tokens
+          &nbsp;·&nbsp; <span class="save">~${(cost.saving_eur||0).toFixed(2)} € économisés</span> (ticket humain évité)`;
+      } else {
+        costHtml=`Pré-qualification : <span class="big">${(cost.llm_cost_eur||0).toFixed(5)} €</span>
+          &nbsp;·&nbsp; coût humain estimé : ${(cost.human_cost_eur||0).toFixed(2)} €`;
+      }
+      wrap.innerHTML=`
+        <div class="answer"></div>
+        <div class="meta">
+          <span class="pill dec-${dec}">${DEC[dec]||dec}</span>
+          <span class="src">Sources : ${(d.sources||[]).join(", ")||"—"}${d.score!=null?"  ·  similarité "+d.score.toFixed(3):""}</span>
+        </div>
+        <div class="cost">${costHtml}</div>`;
+      wrap.querySelector(".answer").textContent=d.answer||"";
+      card.appendChild(wrap);
+    } else if(d.type==="error"){
+      live.remove(); es.close(); busy=false; send.disabled=false;
+      const el=document.createElement("div"); el.className="answer";
+      el.style.borderColor="var(--red)"; el.textContent="Erreur : "+d.message;
+      card.appendChild(el);
+    }
+  };
+  es.onerror=()=>{ es.close(); if(busy){ live.remove(); busy=false; send.disabled=false; } };
+
+  input.value="";
+}
+send.onclick=run;
+input.addEventListener("keydown",e=>{ if(e.key==="Enter") run(); });
+</script>
+</body>
+</html>

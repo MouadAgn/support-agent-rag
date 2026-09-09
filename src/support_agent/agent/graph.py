@@ -58,8 +58,8 @@ class SupportAgent:
         self.llm = get_llm(self.settings)
         self.graph = build_graph()
 
-    def answer(self, question: str) -> AgentState:
-        state: AgentState = {
+    def _initial_state(self, question: str) -> AgentState:
+        return {
             "question": question,
             "trace": [],
             "_settings": self.settings,
@@ -67,4 +67,15 @@ class SupportAgent:
             "_llm": self.llm,
             "_tracker": CostTracker(self.settings),
         }
-        return self.graph.invoke(state)
+
+    def answer(self, question: str) -> AgentState:
+        return self.graph.invoke(self._initial_state(question))
+
+    def stream(self, question: str):
+        """Execute le graphe noeud par noeud et emet la mise a jour de chaque
+        etape des qu'elle est calculee. Utilise par l'interface web pour
+        afficher le pipeline en direct."""
+        for update in self.graph.stream(self._initial_state(question),
+                                        stream_mode="updates"):
+            for node, partial in update.items():
+                yield node, (partial or {})
