@@ -1,0 +1,22 @@
+# Secrets — ne jamais committer les cles API
+.env
+*.key
+
+# Index vectoriel genere
+data/index/*
+!data/index/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+
+# OS / editeur
+.DS_Store
+.idea/
+.vscode/

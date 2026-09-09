@@ -1,0 +1,29 @@
+# Agent LangGraph + RAG
+langgraph>=1.0
+langchain-core>=1.0
+langchain-openai>=1.0
+openai>=1.40
+
+# Recherche vectorielle
+faiss-cpu>=1.8
+scikit-learn>=1.3          # fallback embeddings TF-IDF (sans telechargement)
+numpy>=1.26
+
+# Embeddings semantiques (optionnel mais recommande)
+sentence-transformers>=2.6
+
+# Ingestion documents
+pypdf>=4.0                 # extraction texte des PDF
+reportlab>=4.0            # generation du PDF d'exemple
+
+# Outils
+python-dotenv>=1.0
+tiktoken>=0.7             # comptage des tokens
+pytest>=8.0
+
+# --- OCR (optionnel, pour les PDF scannes / images) ---
+# Necessite le binaire tesseract installe sur la machine :
+#   macOS  : brew install tesseract tesseract-lang
+#   Ubuntu : sudo apt-get install tesseract-ocr tesseract-ocr-fra
+# pytesseract>=0.3.10
+# pdf2image>=1.17
