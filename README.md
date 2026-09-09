@@ -24,12 +24,15 @@ Question client ───┼─ OUVRE UN TICKET  hors périmètre, pas urgent
 
 Il n'y a pas de quatrième porte. L'agent ne peut pas répondre à côté : soit il s'appuie sur un passage de la doc, soit il passe la main.
 
+En amont, un triage écarte ce qui n'est pas une demande. Un « bonjour » reçoit un accueil immédiat — pas une recherche documentaire, pas un appel au modèle, et surtout pas un ticket ouvert pour rien.
+
 ## Comment c'est construit
 
-Un graphe [LangGraph](src/support_agent/agent/graph.py) à cinq étapes, chacune isolée et testable :
+Un graphe [LangGraph](src/support_agent/agent/graph.py) à six étapes, chacune isolée et testable :
 
 | Étape | Rôle |
 |---|---|
+| **triage** | Sépare une vraie demande d'un simple « bonjour » ou « merci ». La politesse reçoit une réponse directe, sans recherche ni appel au modèle |
 | **retrieve** | Cherche les 4 passages les plus proches de la question dans un index vectoriel FAISS |
 | **grade** | Garde-fou n°1 : si le meilleur passage est trop loin, on n'appelle même pas le LLM |
 | **generate** | Le LLM rédige **uniquement** à partir des passages trouvés. S'il n'a pas l'info, il doit écrire `INSUFFISANT` |
@@ -40,7 +43,7 @@ Un graphe [LangGraph](src/support_agent/agent/graph.py) à cinq étapes, chacune
 
 - **La recherche tourne en local, seule la rédaction part chez DeepSeek.** Les embeddings (`sentence-transformers`) sont calculés sur la machine : gratuits, rapides, et les documents ne quittent pas l'infrastructure. DeepSeek ne voit que les 4 extraits nécessaires.
 - **Le routage ticket/escalade est déterministe, pas confié au LLM.** Sur une décision d'escalade, un client fraudé mis en file asynchrone est un incident. Une règle explicite est auditable et gratuite. Les actions sont déjà encapsulées en outils LangChain (`@tool`) pour basculer en tool-calling le jour où la taxonomie l'exige.
-- **Quand `grade` rejette, zéro token est dépensé.** Le garde-fou est aussi une optimisation de coût.
+- **Quand `grade` rejette — ou quand le triage reconnaît une salutation — zéro token est dépensé.** Les garde-fous sont aussi des optimisations de coût.
 
 ## Résultats mesurés
 
@@ -55,7 +58,7 @@ Un graphe [LangGraph](src/support_agent/agent/graph.py) à cinq étapes, chacune
 | Bon passage retrouvé par la recherche | 8 / 8 (score 0,38 – 0,63) |
 | Coût moyen d'une réponse | **0,0017 €** |
 | Latence médiane bout en bout | 2,8 s *(recherche seule : 141 ms)* |
-| Tests automatisés | 13 ✅ |
+| Tests automatisés | 28 ✅ |
 
 **Ce que ces chiffres disent vraiment.** Le résultat qui compte est le premier : sur « quel est votre chiffre d'affaires ? » ou « quelle est la composition chimique de vos t-shirts ? », l'agent n'a jamais bluffé. Il a ouvert un ticket.
 
@@ -88,7 +91,24 @@ Le coût est calculé sur les tokens réellement facturés par l'API (`prompt_to
 ```bash
 python -m venv .venv && source .venv/bin/activate   # Windows : .venv\Scripts\activate
 pip install -r requirements.txt
-cp .env.example .env      # puis colle ta clé DeepSeek
+```
+
+Crée ensuite un fichier `.env` à la racine :
+
+```ini
+DEEPSEEK_API_KEY=sk-...        # ta clé ; sans elle, le mode démo prend le relais
+LLM_MODEL=deepseek-v4-pro      # deepseek-v4-flash est ~3x moins cher
+LLM_BASE_URL=https://api.deepseek.com
+
+TOP_K=4                        # passages envoyés au modèle
+SCORE_THRESHOLD=0.20           # seuil de pertinence (garde-fou)
+CHUNK_SIZE=800                 # taille des morceaux, en caractères
+CHUNK_OVERLAP=120
+
+PRICE_INPUT_PER_M=1.135        # € par million de tokens en entrée
+PRICE_OUTPUT_PER_M=3.406       # € par million de tokens en sortie
+COST_PER_TICKET=5.00           # coût moyen d'un ticket humain
+COST_PER_CALL=6.50             # coût moyen d'un appel
 ```
 
 ```bash
@@ -131,7 +151,7 @@ support-agent-rag/
 │   ├── config.py               # configuration (.env)
 │   ├── llm.py                  # client DeepSeek/OpenAI + LLM simulé
 │   ├── ingestion/              # loaders (PDF + OCR) · chunking · vectorstore
-│   ├── agent/                  # graph · nodes · tools · prompts · state
+│   ├── agent/                  # graph · nodes · triage · tools · prompts · state
 │   └── cost/tracker.py         # suivi des coûts
 ├── docs/CONCEPTS.md            # les notions expliquées (RAG, LLM, OCR, VLM…)
 └── tests/                      # pytest

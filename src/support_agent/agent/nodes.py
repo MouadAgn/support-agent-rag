@@ -4,6 +4,30 @@ from __future__ import annotations
 from .prompts import SYSTEM_PROMPT, build_user_prompt
 from .state import AgentState
 from .tools import create_ticket, escalate_to_agent, looks_urgent
+from .triage import detecter_conversation, reponse_conversation
+
+
+def triage(state: AgentState) -> dict:
+    """Etape 0 : est-ce une vraie demande, ou juste de la conversation ?
+
+    Un "bonjour" ou un "merci" n'a rien a faire dans le pipeline RAG : il
+    couterait un appel LLM et finirait en ticket ouvert pour rien. On y
+    repond ici, sans LLM et sans recherche.
+    """
+    famille = detecter_conversation(state["question"])
+    trace = state.get("trace", []) + [
+        f"triage : {famille or 'demande de support'} -> "
+        f"{'reponse directe, aucun appel LLM' if famille else 'pipeline RAG'}"
+    ]
+    if not famille:
+        return {"trace": trace}
+    return {
+        "answer": reponse_conversation(famille),
+        "decision": "smalltalk",
+        "documents": [],
+        "retrieval_score": 0.0,
+        "trace": trace,
+    }
 
 
 def retrieve(state: AgentState) -> dict:
@@ -93,6 +117,10 @@ def finalize(state: AgentState) -> dict:
 # --------------------------------------------------------------------------- #
 #  Fonctions d'aiguillage (conditional edges)                                 #
 # --------------------------------------------------------------------------- #
+def route_after_triage(state: AgentState) -> str:
+    return "finalize" if state.get("decision") == "smalltalk" else "retrieve"
+
+
 def route_after_grade(state: AgentState) -> str:
     return "generate" if state.get("relevant") else "handle_fallback"
 

@@ -11,7 +11,7 @@ class AgentState(TypedDict, total=False):
     relevant: bool                    # le contexte est-il pertinent ? (RAG quality)
     answer: str                       # reponse generee
     can_answer: bool                  # le LLM a-t-il pu repondre depuis le contexte ?
-    decision: str                     # "answered" | "ticket" | "escalate"
+    decision: str                     # "answered" | "ticket" | "escalate" | "smalltalk"
     ticket: Optional[dict]            # ticket cree / routage appel
     cost: dict                        # rapport de cout
     trace: list[str]                  # journal des etapes (pour l'affichage)

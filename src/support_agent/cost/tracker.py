@@ -25,7 +25,7 @@ class CostReport:
     input_tokens: int
     output_tokens: int
     llm_cost: float          # cout des tokens (EUR)
-    resolution: str          # "answered" | "ticket" | "escalate"
+    resolution: str          # "answered" | "ticket" | "escalate" | "smalltalk"
     human_cost: float        # cout humain evite (ou engage) selon resolution
     saving: float            # economie nette (EUR)
     calls: list[Usage] = field(default_factory=list)
@@ -60,7 +60,12 @@ class CostTracker:
         out_tok = sum(c.output_tokens for c in self.calls)
         llm_cost = self._llm_cost(in_tok, out_tok)
 
-        if resolution == "answered":
+        if resolution == "smalltalk":
+            # Un "bonjour" n'aurait jamais genere de ticket : compter une
+            # economie ici gonflerait artificiellement le ROI. On assume 0.
+            human_cost = 0.0
+            saving = 0.0
+        elif resolution == "answered":
             # on a evite un ticket humain -> economie = cout ticket - cout LLM
             human_cost = self.s.cost_per_ticket
             saving = human_cost - llm_cost

@@ -19,6 +19,7 @@
     --green:#15803d;   --green-soft:#e8f5ec;  --green-line:#b7dfc4;
     --amber:#a35a06;   --amber-soft:#fdf3e3;  --amber-line:#f0d5a8;
     --red:#b4232b;     --red-soft:#fdeceb;    --red-line:#f2c2bf;
+  --slate:#4a5259;   --slate-soft:#eef0f2;  --slate-line:#d5dade;
     --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
     --radius:10px;
   }
@@ -95,7 +96,8 @@
     font-size:11px; font-weight:650; color:var(--muted); margin-bottom:7px;
   }
   .ex-label i{width:6px; height:6px; border-radius:50%; flex:none; font-style:normal;}
-  .i-ans{background:var(--green);} .i-tck{background:var(--amber);} .i-esc{background:var(--red);}
+  .i-ans{background:var(--green);} .i-tck{background:var(--amber);}
+  .i-esc{background:var(--red);}   .i-cnv{background:var(--slate);}
   .ex{
     display:block; width:100%; text-align:left; cursor:pointer;
     background:var(--surface-2); border:1px solid var(--line);
@@ -164,6 +166,7 @@
   }
   .answer.is-ticket{border-left-color:var(--amber);}
   .answer.is-escalate{border-left-color:var(--red);}
+  .answer.is-smalltalk{border-left-color:var(--slate);}
   .answer.is-error{border-left-color:var(--red); background:var(--red-soft); color:var(--red);}
 
   .tags{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:11px;}
@@ -171,6 +174,7 @@
   .pill.answered{background:var(--green-soft); border-color:var(--green-line); color:var(--green);}
   .pill.ticket  {background:var(--amber-soft); border-color:var(--amber-line); color:var(--amber);}
   .pill.escalate{background:var(--red-soft);   border-color:var(--red-line);   color:var(--red);}
+  .pill.smalltalk{background:var(--slate-soft);border-color:var(--slate-line);color:var(--slate);}
   .src{font-size:12px; color:var(--muted);}
   .src b{font-family:var(--mono); font-weight:500; color:var(--ink-2); font-size:11.5px;}
 
@@ -225,7 +229,7 @@
     <section class="panel">
       <div class="panel-h">Cette session</div>
       <div class="stats">
-        <div class="stat"><div class="v" id="s-total">0</div><div class="k">Questions</div></div>
+        <div class="stat"><div class="v" id="s-total">0</div><div class="k">Demandes</div></div>
         <div class="stat"><div class="v green" id="s-ans">0</div><div class="k">Répondues</div></div>
         <div class="stat"><div class="v" id="s-dev">0</div><div class="k">Déviées</div></div>
         <div class="stat"><div class="v accent" id="s-cost">0,000 €</div><div class="k">Coût cumulé</div></div>
@@ -253,6 +257,7 @@
 "use strict";
 
 const NODES = {
+  triage:          {n:0, label:"Triage de l'intention"},
   retrieve:        {n:1, label:"Recherche des passages"},
   grade:           {n:2, label:"Contrôle de pertinence"},
   generate:        {n:3, label:"Génération de la réponse"},
@@ -264,6 +269,7 @@ const DECISION = {
   answered: "Répondu par l'agent",
   ticket:   "Ticket ouvert",
   escalate: "Escalade téléconseiller",
+  smalltalk:"Accueil — aucun appel LLM",
 };
 
 const CASES = [
@@ -279,6 +285,10 @@ const CASES = [
   {label:"Urgence ou litige → appel", cls:"i-esc", items:[
     "On m'a prélevé deux fois, c'est urgent, je veux un remboursement",
     "Je vais porter plainte, mon compte est bloqué",
+  ]},
+  {label:"Conversation → réponse directe", cls:"i-cnv", items:[
+    "Bonjour",
+    "Merci beaucoup !",
   ]},
 ];
 
@@ -405,30 +415,41 @@ function run() {
       const src = document.createElement("span");
       src.className = "src";
       const names = (d.sources || []);
-      src.innerHTML = names.length
-        ? "Sources : " + names.map(n => `<b>${n.replace(/[<>&]/g, "")}</b>`).join(", ")
-        : "Aucune source retenue";
-      if (d.score != null) src.innerHTML += " · similarité " + d.score.toFixed(3);
+      if (dec === "smalltalk") {
+        src.textContent = "Traité avant la recherche documentaire";
+      } else {
+        src.innerHTML = names.length
+          ? "Sources : " + names.map(n => `<b>${n.replace(/[<>&]/g, "")}</b>`).join(", ")
+          : "Aucune source retenue";
+        if (d.score != null) src.innerHTML += " · similarité " + d.score.toFixed(3);
+      }
       tags.appendChild(src);
       out.appendChild(tags);
 
       const bar = document.createElement("div");
       bar.className = "costbar";
       const tokens = `${cost.input_tokens || 0} <small>in</small> · ${cost.output_tokens || 0} <small>out</small>`;
-      bar.innerHTML =
-        `<div class="cell"><div class="k">Tokens</div><div class="v">${tokens}</div></div>
-         <div class="cell"><div class="k">Coût LLM</div><div class="v accent">${eur(cost.llm_cost_eur)}</div></div>` +
-        (dec === "answered"
-          ? `<div class="cell"><div class="k">Ticket évité</div><div class="v green">${eur(cost.saving_eur, 2)}</div></div>`
-          : `<div class="cell"><div class="k">Coût humain engagé</div><div class="v">${eur(cost.human_cost_eur, 2)}</div></div>`);
+      bar.innerHTML = dec === "smalltalk"
+        ? `<div class="cell"><div class="k">Tokens</div><div class="v">0</div></div>
+           <div class="cell"><div class="k">Coût LLM</div><div class="v accent">${eur(0)}</div></div>
+           <div class="cell"><div class="k">Appel au modèle</div><div class="v">Aucun</div></div>`
+        : `<div class="cell"><div class="k">Tokens</div><div class="v">${tokens}</div></div>
+           <div class="cell"><div class="k">Coût LLM</div><div class="v accent">${eur(cost.llm_cost_eur)}</div></div>` +
+          (dec === "answered"
+            ? `<div class="cell"><div class="k">Ticket évité</div><div class="v green">${eur(cost.saving_eur, 2)}</div></div>`
+            : `<div class="cell"><div class="k">Coût humain engagé</div><div class="v">${eur(cost.human_cost_eur, 2)}</div></div>`);
       out.appendChild(bar);
 
       card.appendChild(out);
 
-      stats.total++;
-      if (dec === "answered") stats.answered++; else stats.deflected++;
-      stats.cost += (cost.llm_cost_eur || 0);
-      refreshStats();
+      // Une salutation n'est pas une question de support : la compter
+      // fausserait le taux de deviation affiche.
+      if (dec !== "smalltalk") {
+        stats.total++;
+        if (dec === "answered") stats.answered++; else stats.deflected++;
+        stats.cost += (cost.llm_cost_eur || 0);
+        refreshStats();
+      }
 
     } else if (d.type === "error") {
       es.close(); finish();

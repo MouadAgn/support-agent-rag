@@ -2,11 +2,13 @@
 
 Flux :
 
-    START -> retrieve -> grade -> [pertinent ?]
-                                      |-- oui --> generate -> [a repondu ?]
-                                      |                          |-- oui --> finalize -> END
-                                      |                          '-- non --> handle_fallback
-                                      '-- non ------------------------------> handle_fallback -> finalize -> END
+    START -> triage -> [vraie demande ?]
+                          |-- non (bonjour, merci...) ----------> finalize -> END
+                          '-- oui --> retrieve -> grade -> [pertinent ?]
+                                                   |-- oui --> generate -> [a repondu ?]
+                                                   |              |-- oui --> finalize -> END
+                                                   |              '-- non --> handle_fallback
+                                                   '-- non ---------------> handle_fallback -> finalize -> END
 """
 from __future__ import annotations
 
@@ -23,13 +25,18 @@ from .state import AgentState
 def build_graph():
     """Construit et compile le graphe (structure pure, sans dependances)."""
     g = StateGraph(AgentState)
+    g.add_node("triage", nodes.triage)
     g.add_node("retrieve", nodes.retrieve)
     g.add_node("grade", nodes.grade)
     g.add_node("generate", nodes.generate)
     g.add_node("handle_fallback", nodes.handle_fallback)
     g.add_node("finalize", nodes.finalize)
 
-    g.add_edge(START, "retrieve")
+    g.add_edge(START, "triage")
+    g.add_conditional_edges(
+        "triage", nodes.route_after_triage,
+        {"retrieve": "retrieve", "finalize": "finalize"},
+    )
     g.add_edge("retrieve", "grade")
     g.add_conditional_edges(
         "grade", nodes.route_after_grade,
