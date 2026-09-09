@@ -3,187 +3,467 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>Agent de support — Démo</title>
+<title>Agent de support — Console de test</title>
 <style>
   :root{
-    --bg:#0e141b; --card:#161f29; --card2:#1d2833; --line:#2a3743;
-    --ink:#e6edf3; --muted:#8b98a5; --teal:#4bb3b8; --teal-d:#3a9299;
-    --green:#3fb950; --amber:#d29922; --red:#f85149;
+    --bg:#f5f6f8;
+    --surface:#ffffff;
+    --surface-2:#fafbfc;
+    --line:#e4e7eb;
+    --line-strong:#d3d8de;
+    --ink:#15181d;
+    --ink-2:#41474f;
+    --muted:#767e88;
+    --accent:#0e7a72;
+    --accent-soft:#e6f4f2;
+    --green:#15803d;   --green-soft:#e8f5ec;  --green-line:#b7dfc4;
+    --amber:#a35a06;   --amber-soft:#fdf3e3;  --amber-line:#f0d5a8;
+    --red:#b4232b;     --red-soft:#fdeceb;    --red-line:#f2c2bf;
+    --mono:ui-monospace,SFMono-Regular,"SF Mono",Menlo,Consolas,monospace;
+    --radius:10px;
   }
   *{box-sizing:border-box;margin:0;padding:0;}
-  body{background:var(--bg);color:var(--ink);
-       font-family:-apple-system,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
-       line-height:1.5;min-height:100vh;}
-  .wrap{max-width:860px;margin:0 auto;padding:24px 18px 60px;}
-  header{display:flex;align-items:center;justify-content:space-between;
-         gap:12px;flex-wrap:wrap;margin-bottom:6px;}
-  h1{font-size:20px;font-weight:800;}
-  h1 span{color:var(--teal);}
-  .badge{font-size:12px;color:var(--muted);border:1px solid var(--line);
-         padding:4px 10px;border-radius:999px;}
-  .badge b{color:var(--teal);}
-  .sub{color:var(--muted);font-size:13px;margin-bottom:18px;}
+  body{
+    background:var(--bg); color:var(--ink);
+    font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,Helvetica,Arial,sans-serif;
+    font-size:14px; line-height:1.55; -webkit-font-smoothing:antialiased;
+  }
 
-  .askbar{display:flex;gap:8px;margin-bottom:10px;}
-  input[type=text]{flex:1;background:var(--card);border:1px solid var(--line);
-       color:var(--ink);padding:12px 14px;border-radius:10px;font-size:15px;outline:none;}
-  input[type=text]:focus{border-color:var(--teal);}
-  button{background:var(--teal);color:#06222330;border:none;color:#052027;
-       font-weight:700;padding:0 18px;border-radius:10px;cursor:pointer;font-size:15px;}
-  button:disabled{opacity:.5;cursor:default;}
-  .chips{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:22px;}
-  .chip{font-size:12.5px;color:var(--muted);background:var(--card);
-       border:1px solid var(--line);padding:6px 11px;border-radius:999px;cursor:pointer;}
-  .chip:hover{border-color:var(--teal);color:var(--ink);}
+  /* ---------- barre de titre ---------- */
+  .topbar{
+    background:var(--surface); border-bottom:1px solid var(--line);
+    padding:0 24px; position:sticky; top:0; z-index:10;
+  }
+  .topbar-in{
+    max-width:1180px; margin:0 auto; height:58px;
+    display:flex; align-items:center; justify-content:space-between; gap:16px;
+  }
+  .brand{display:flex; align-items:baseline; gap:10px; min-width:0;}
+  .brand h1{font-size:15px; font-weight:650; letter-spacing:-.1px; white-space:nowrap;}
+  .brand .tag{font-size:12px; color:var(--muted); white-space:nowrap;}
+  .model{
+    display:flex; align-items:center; gap:7px; font-size:12px; color:var(--ink-2);
+    background:var(--surface-2); border:1px solid var(--line);
+    padding:5px 11px; border-radius:99px; white-space:nowrap;
+  }
+  .model b{font-family:var(--mono); font-weight:600; font-size:11.5px;}
+  .led{width:7px; height:7px; border-radius:50%; background:var(--accent); flex:none;}
+  .led.demo{background:var(--amber);}
 
-  .card{background:var(--card);border:1px solid var(--line);border-radius:14px;
-        padding:16px 18px;margin-bottom:16px;}
-  .qline{color:var(--muted);font-size:13px;margin-bottom:4px;}
-  .qtext{font-size:16px;font-weight:600;}
+  /* ---------- structure ---------- */
+  .page{max-width:1180px; margin:0 auto; padding:22px 24px 56px;
+        display:grid; grid-template-columns:330px minmax(0,1fr); gap:22px; align-items:start;}
+  @media (max-width:900px){ .page{grid-template-columns:1fr; padding:16px;} .side{position:static !important;} }
 
-  .pipe-title{font-size:12px;letter-spacing:.6px;text-transform:uppercase;
-        color:var(--muted);margin-bottom:12px;}
-  .step{display:flex;gap:12px;align-items:flex-start;padding:8px 0;
-        opacity:0;transform:translateY(6px);animation:in .28s forwards;}
-  @keyframes in{to{opacity:1;transform:none;}}
-  .dot{flex:none;width:26px;height:26px;border-radius:50%;background:var(--card2);
-       border:1px solid var(--line);display:flex;align-items:center;justify-content:center;
-       font-size:13px;font-weight:700;color:var(--teal);}
-  .step.ok .dot{background:var(--teal);color:#052027;border-color:var(--teal);}
-  .step .lbl{font-weight:600;font-size:14px;}
-  .step .det{color:var(--muted);font-size:12.5px;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;}
-  .spin{width:26px;height:26px;border:2px solid var(--line);border-top-color:var(--teal);
-        border-radius:50%;animation:sp .7s linear infinite;}
+  .side{position:sticky; top:80px; display:flex; flex-direction:column; gap:14px;}
+
+  .panel{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius);}
+  .panel-h{
+    padding:11px 15px; border-bottom:1px solid var(--line);
+    font-size:11px; font-weight:650; letter-spacing:.7px; text-transform:uppercase; color:var(--muted);
+  }
+  .panel-b{padding:15px;}
+
+  /* ---------- saisie ---------- */
+  textarea#q{
+    width:100%; resize:vertical; min-height:74px;
+    border:1px solid var(--line-strong); border-radius:8px; padding:10px 12px;
+    font-family:inherit; font-size:14px; line-height:1.5; color:var(--ink);
+    background:var(--surface); outline:none; transition:border-color .12s, box-shadow .12s;
+  }
+  textarea#q:focus{border-color:var(--accent); box-shadow:0 0 0 3px var(--accent-soft);}
+  textarea#q::placeholder{color:#a6adb6;}
+  .send-row{display:flex; align-items:center; justify-content:space-between; gap:10px; margin-top:10px;}
+  .hint{font-size:11.5px; color:var(--muted);}
+  .hint kbd{
+    font-family:var(--mono); font-size:10.5px; background:var(--surface-2);
+    border:1px solid var(--line-strong); border-bottom-width:2px;
+    border-radius:4px; padding:1px 5px; color:var(--ink-2);
+  }
+  button.primary{
+    background:var(--accent); color:#fff; border:none; border-radius:8px;
+    padding:9px 18px; font-size:13.5px; font-weight:600; font-family:inherit;
+    cursor:pointer; transition:background .12s, opacity .12s;
+  }
+  button.primary:hover:not(:disabled){background:#0b635c;}
+  button.primary:disabled{opacity:.45; cursor:not-allowed;}
+
+  /* ---------- exemples ---------- */
+  .ex-group + .ex-group{margin-top:14px;}
+  .ex-label{
+    display:flex; align-items:center; gap:7px;
+    font-size:11px; font-weight:650; color:var(--muted); margin-bottom:7px;
+  }
+  .ex-label i{width:6px; height:6px; border-radius:50%; flex:none; font-style:normal;}
+  .i-ans{background:var(--green);} .i-tck{background:var(--amber);} .i-esc{background:var(--red);}
+  .ex{
+    display:block; width:100%; text-align:left; cursor:pointer;
+    background:var(--surface-2); border:1px solid var(--line);
+    border-radius:7px; padding:7px 10px; margin-bottom:5px;
+    font-family:inherit; font-size:12.5px; color:var(--ink-2); line-height:1.4;
+    transition:border-color .12s, background .12s, color .12s;
+  }
+  .ex:hover{border-color:var(--accent); background:var(--accent-soft); color:var(--ink);}
+
+  /* ---------- stats de session ---------- */
+  .stats{display:grid; grid-template-columns:1fr 1fr; gap:1px; background:var(--line);
+         border-radius:0 0 var(--radius) var(--radius); overflow:hidden;}
+  .stat{background:var(--surface); padding:11px 14px;}
+  .stat .v{font-size:17px; font-weight:650; letter-spacing:-.3px; font-variant-numeric:tabular-nums;}
+  .stat .k{font-size:10.5px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px; margin-top:1px;}
+  .stat .v.green{color:var(--green);} .stat .v.accent{color:var(--accent);}
+
+  /* ---------- résultats ---------- */
+  .feed{display:flex; flex-direction:column; gap:16px;}
+  .empty{
+    background:var(--surface); border:1px dashed var(--line-strong); border-radius:var(--radius);
+    padding:46px 28px; text-align:center; color:var(--muted);
+  }
+  .empty .t{font-size:14.5px; font-weight:600; color:var(--ink-2); margin-bottom:5px;}
+  .empty .s{font-size:13px; max-width:400px; margin:0 auto;}
+
+  .card{background:var(--surface); border:1px solid var(--line); border-radius:var(--radius); overflow:hidden;}
+  .card-q{
+    padding:13px 17px; border-bottom:1px solid var(--line); background:var(--surface-2);
+    display:flex; align-items:flex-start; gap:10px;
+  }
+  .card-q .ql{font-size:10.5px; font-weight:650; letter-spacing:.5px; text-transform:uppercase;
+              color:var(--muted); padding-top:3px; flex:none;}
+  .card-q .qt{font-size:14.5px; font-weight:600; color:var(--ink); min-width:0; word-wrap:break-word;}
+
+  /* pipeline */
+  .pipe{padding:13px 17px;}
+  .pipe-h{font-size:10.5px; font-weight:650; letter-spacing:.6px; text-transform:uppercase;
+          color:var(--muted); margin-bottom:10px;}
+  .step{display:flex; align-items:flex-start; gap:11px; padding:5px 0;
+        opacity:0; transform:translateY(4px); animation:fade .22s ease forwards;}
+  @keyframes fade{to{opacity:1; transform:none;}}
+  .step .num{
+    flex:none; width:21px; height:21px; border-radius:50%; margin-top:1px;
+    background:var(--accent-soft); color:var(--accent); border:1px solid #bfe0dc;
+    display:flex; align-items:center; justify-content:center; font-size:11px; font-weight:650;
+  }
+  .step .body{min-width:0; flex:1;}
+  .step .name{font-size:13px; font-weight:600; display:flex; align-items:baseline; gap:8px; flex-wrap:wrap;}
+  .step .node{font-family:var(--mono); font-size:10.5px; color:var(--muted); font-weight:400;}
+  .step .ms{margin-left:auto; font-family:var(--mono); font-size:10.5px; color:var(--muted); flex:none;}
+  .step .det{font-family:var(--mono); font-size:11.5px; color:var(--ink-2);
+             background:var(--surface-2); border:1px solid var(--line); border-radius:5px;
+             padding:4px 8px; margin-top:4px; word-wrap:break-word; overflow-wrap:anywhere;}
+  .spin{flex:none; width:21px; height:21px; margin-top:1px; border-radius:50%;
+        border:2px solid var(--line); border-top-color:var(--accent); animation:sp .65s linear infinite;}
   @keyframes sp{to{transform:rotate(360deg);}}
+  .running .name{color:var(--muted);}
 
-  .answer{background:var(--card2);border-left:3px solid var(--teal);
-          padding:14px 16px;border-radius:8px;margin-top:4px;font-size:15.5px;}
-  .meta{display:flex;gap:10px;flex-wrap:wrap;margin-top:14px;align-items:center;}
-  .pill{font-size:12.5px;padding:5px 11px;border-radius:999px;border:1px solid var(--line);}
-  .pill.dec-answered{background:#12331b;border-color:#1f6f2e;color:#7ee787;}
-  .pill.dec-ticket{background:#33280c;border-color:#8a6d1c;color:#f2cc60;}
-  .pill.dec-escalate{background:#3a1416;border-color:#8a2c2c;color:#ff9a92;}
-  .src{color:var(--muted);font-size:12.5px;}
-  .cost{margin-top:12px;background:#0d1620;border:1px solid var(--line);border-radius:10px;
-        padding:12px 14px;font-size:13.5px;}
-  .cost .big{color:var(--teal);font-weight:800;font-size:16px;}
-  .cost .save{color:var(--green);font-weight:700;}
-  .hidden{display:none;}
-  .foot{color:var(--muted);font-size:12px;text-align:center;margin-top:24px;}
+  /* réponse */
+  .out{padding:0 17px 15px;}
+  .answer{
+    border-left:3px solid var(--accent); background:var(--surface-2);
+    border-radius:0 7px 7px 0; padding:12px 15px; font-size:14.5px; color:var(--ink);
+    white-space:pre-wrap; word-wrap:break-word;
+  }
+  .answer.is-ticket{border-left-color:var(--amber);}
+  .answer.is-escalate{border-left-color:var(--red);}
+  .answer.is-error{border-left-color:var(--red); background:var(--red-soft); color:var(--red);}
+
+  .tags{display:flex; align-items:center; gap:8px; flex-wrap:wrap; margin-top:11px;}
+  .pill{font-size:11.5px; font-weight:600; padding:3.5px 10px; border-radius:99px; border:1px solid;}
+  .pill.answered{background:var(--green-soft); border-color:var(--green-line); color:var(--green);}
+  .pill.ticket  {background:var(--amber-soft); border-color:var(--amber-line); color:var(--amber);}
+  .pill.escalate{background:var(--red-soft);   border-color:var(--red-line);   color:var(--red);}
+  .src{font-size:12px; color:var(--muted);}
+  .src b{font-family:var(--mono); font-weight:500; color:var(--ink-2); font-size:11.5px;}
+
+  .costbar{
+    display:flex; align-items:center; gap:0; flex-wrap:wrap; margin-top:11px;
+    border:1px solid var(--line); border-radius:8px; overflow:hidden; background:var(--surface-2);
+  }
+  .cell{padding:8px 14px; flex:1; min-width:112px; border-right:1px solid var(--line);}
+  .cell:last-child{border-right:none;}
+  .cell .k{font-size:10px; color:var(--muted); text-transform:uppercase; letter-spacing:.4px;}
+  .cell .v{font-size:13.5px; font-weight:650; font-variant-numeric:tabular-nums; margin-top:1px;}
+  .cell .v.accent{color:var(--accent);} .cell .v.green{color:var(--green);}
+  .cell .v small{font-weight:400; color:var(--muted); font-size:11px;}
+
+  .foot{max-width:1180px; margin:0 auto; padding:0 24px;
+        font-size:11.5px; color:var(--muted); text-align:center;}
 </style>
 </head>
 <body>
-<div class="wrap">
-  <header>
-    <h1>Agent de support <span>· LangGraph + RAG</span></h1>
-    <div class="badge">Modèle : <b id="mode">…</b></div>
-  </header>
-  <div class="sub">Pose une question. Tu vois en direct chaque étape : recherche, contrôle qualité, génération, décision, coût.</div>
 
-  <div class="askbar">
-    <input id="q" type="text" placeholder="Ex : Quels sont les délais de livraison ?" autocomplete="off">
-    <button id="send">Envoyer</button>
+<div class="topbar">
+  <div class="topbar-in">
+    <div class="brand">
+      <h1>Agent de support</h1>
+      <span class="tag">· console de test — LangGraph + RAG</span>
+    </div>
+    <div class="model"><span class="led" id="led"></span>Modèle&nbsp;<b id="mode">…</b></div>
   </div>
-  <div class="chips" id="chips"></div>
-
-  <div id="conv"></div>
-
-  <div class="foot">Projet démo — l'agent répond depuis la FAQ et les PDF, sinon il ouvre un ticket ou escalade vers un téléconseiller.</div>
 </div>
 
+<div class="page">
+
+  <!-- ---------------- colonne gauche ---------------- -->
+  <aside class="side">
+
+    <section class="panel">
+      <div class="panel-h">Poser une question</div>
+      <div class="panel-b">
+        <textarea id="q" placeholder="Ex : Quels sont les délais de livraison ?" autocomplete="off"></textarea>
+        <div class="send-row">
+          <span class="hint"><kbd>↵</kbd> envoyer · <kbd>⇧↵</kbd> retour ligne</span>
+          <button class="primary" id="send">Envoyer</button>
+        </div>
+      </div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-h">Cas de test</div>
+      <div class="panel-b" id="examples"></div>
+    </section>
+
+    <section class="panel">
+      <div class="panel-h">Cette session</div>
+      <div class="stats">
+        <div class="stat"><div class="v" id="s-total">0</div><div class="k">Questions</div></div>
+        <div class="stat"><div class="v green" id="s-ans">0</div><div class="k">Répondues</div></div>
+        <div class="stat"><div class="v" id="s-dev">0</div><div class="k">Déviées</div></div>
+        <div class="stat"><div class="v accent" id="s-cost">0,000 €</div><div class="k">Coût cumulé</div></div>
+      </div>
+    </section>
+
+  </aside>
+
+  <!-- ---------------- colonne droite ---------------- -->
+  <main>
+    <div class="feed" id="feed">
+      <div class="empty" id="empty">
+        <div class="t">Aucune question pour l'instant</div>
+        <div class="s">Choisis un cas de test à gauche, ou écris ta propre question.
+          Chaque étape du graphe s'affiche en direct, avec sa durée et son coût.</div>
+      </div>
+    </div>
+  </main>
+
+</div>
+
+<div class="foot">L'agent répond depuis la FAQ et les PDF indexés. Hors périmètre, il ouvre un ticket ou escalade vers un téléconseiller.</div>
+
 <script>
+"use strict";
+
 const NODES = {
-  retrieve:        {n:1, label:"Recherche (RAG)"},
-  grade:           {n:2, label:"Contrôle qualité du contexte"},
-  generate:        {n:3, label:"Génération (LLM)"},
+  retrieve:        {n:1, label:"Recherche des passages"},
+  grade:           {n:2, label:"Contrôle de pertinence"},
+  generate:        {n:3, label:"Génération de la réponse"},
   handle_fallback: {n:3, label:"Routage vers un humain"},
   finalize:        {n:4, label:"Calcul du coût"},
 };
-const DEC = {answered:"Répondu par l'agent", ticket:"Ticket ouvert", escalate:"Escalade téléconseiller"};
-const EXAMPLES = [
-  "Quels sont les délais de livraison ?",
-  "Comment retourner un article ?",
-  "Est-ce que vous vendez des billets d'avion ?",
-  "Paiement bloqué, c'est urgent, litige, je veux un remboursement",
+
+const DECISION = {
+  answered: "Répondu par l'agent",
+  ticket:   "Ticket ouvert",
+  escalate: "Escalade téléconseiller",
+};
+
+const CASES = [
+  {label:"Couvert par la documentation", cls:"i-ans", items:[
+    "Quels sont les délais de livraison ?",
+    "Comment retourner un article ?",
+    "Est-ce que je peux payer avec PayPal ?",
+  ]},
+  {label:"Hors périmètre → ticket", cls:"i-tck", items:[
+    "Est-ce que vous vendez des billets d'avion ?",
+    "Quel est le chiffre d'affaires de votre entreprise ?",
+  ]},
+  {label:"Urgence ou litige → appel", cls:"i-esc", items:[
+    "On m'a prélevé deux fois, c'est urgent, je veux un remboursement",
+    "Je vais porter plainte, mon compte est bloqué",
+  ]},
 ];
 
-const $ = s => document.querySelector(s);
-const conv = $("#conv"), input = $("#q"), send = $("#send");
+const $ = (s) => document.querySelector(s);
+const feed = $("#feed"), input = $("#q"), sendBtn = $("#send"), empty = $("#empty");
 
-fetch("/api/config").then(r=>r.json()).then(c=>{ $("#mode").textContent = c.mode; });
+const eur = (v, d = 5) =>
+  (v || 0).toLocaleString("fr-FR", {minimumFractionDigits:d, maximumFractionDigits:d}) + " €";
 
-const chips = $("#chips");
-EXAMPLES.forEach(t=>{
-  const c=document.createElement("span"); c.className="chip"; c.textContent=t;
-  c.onclick=()=>{ input.value=t; run(); };
-  chips.appendChild(c);
+/* ---------- bandeau modèle ---------- */
+fetch("/api/config").then(r => r.json()).then(c => {
+  $("#mode").textContent = c.mode;
+  if (c.mode === "demo") $("#led").classList.add("demo");
+}).catch(() => { $("#mode").textContent = "indisponible"; });
+
+/* ---------- cas de test ---------- */
+const exBox = $("#examples");
+CASES.forEach(group => {
+  const g = document.createElement("div");
+  g.className = "ex-group";
+  const lab = document.createElement("div");
+  lab.className = "ex-label";
+  lab.innerHTML = `<i class="${group.cls}"></i>`;
+  lab.append(group.label);
+  g.appendChild(lab);
+  group.items.forEach(text => {
+    const b = document.createElement("button");
+    b.className = "ex";
+    b.type = "button";
+    b.textContent = text;
+    b.onclick = () => { input.value = text; run(); };
+    g.appendChild(b);
+  });
+  exBox.appendChild(g);
 });
 
-let busy=false;
-function run(){
-  const question=input.value.trim();
-  if(!question||busy) return;
-  busy=true; send.disabled=true;
+/* ---------- statistiques de session ---------- */
+const stats = {total:0, answered:0, deflected:0, cost:0};
+function refreshStats() {
+  $("#s-total").textContent = stats.total;
+  $("#s-ans").textContent   = stats.answered;
+  $("#s-dev").textContent   = stats.deflected;
+  $("#s-cost").textContent  = stats.cost.toLocaleString("fr-FR",
+    {minimumFractionDigits:4, maximumFractionDigits:4}) + " €";
+}
 
-  const card=document.createElement("div"); card.className="card";
-  card.innerHTML=`<div class="qline">Question</div><div class="qtext"></div>
-    <div class="pipe-title" style="margin-top:14px">Pipeline en direct</div>
-    <div class="steps"></div>`;
-  card.querySelector(".qtext").textContent=question;
-  conv.prepend(card);
-  const steps=card.querySelector(".steps");
+/* ---------- exécution ---------- */
+let busy = false;
 
-  // ligne "en cours"
-  const live=document.createElement("div"); live.className="step";
-  live.innerHTML=`<div class="spin"></div><div><div class="lbl">Traitement…</div></div>`;
+function run() {
+  const question = input.value.trim();
+  if (!question || busy) return;
+  busy = true;
+  sendBtn.disabled = true;
+  if (empty) empty.remove();
+
+  const card = document.createElement("div");
+  card.className = "card";
+  card.innerHTML =
+    `<div class="card-q"><span class="ql">Question</span><span class="qt"></span></div>
+     <div class="pipe"><div class="pipe-h">Pipeline LangGraph</div><div class="steps"></div></div>`;
+  card.querySelector(".qt").textContent = question;
+  feed.prepend(card);
+
+  const steps = card.querySelector(".steps");
+  const live = document.createElement("div");
+  live.className = "step running";
+  live.innerHTML = `<div class="spin"></div><div class="body"><div class="name">Traitement…</div></div>`;
   steps.appendChild(live);
 
-  const es=new EventSource("/api/ask?question="+encodeURIComponent(question));
-  es.onmessage=(e)=>{
-    const d=JSON.parse(e.data);
-    if(d.type==="step"){
-      const meta=NODES[d.node]||{n:"•",label:d.node};
-      const el=document.createElement("div"); el.className="step ok";
-      el.innerHTML=`<div class="dot">${meta.n}</div>
-        <div><div class="lbl">${meta.label}</div><div class="det"></div></div>`;
-      el.querySelector(".det").textContent=d.detail||"";
-      steps.insertBefore(el, live);
-    } else if(d.type==="done"){
-      live.remove(); es.close(); busy=false; send.disabled=false;
-      const dec=d.decision||"answered";
-      const cost=d.cost||{};
-      const wrap=document.createElement("div");
-      let costHtml="";
-      if(cost.resolution==="answered"){
-        costHtml=`<span class="big">${(cost.llm_cost_eur||0).toFixed(5)} €</span> pour cette réponse
-          &nbsp;·&nbsp; ${cost.input_tokens||0} + ${cost.output_tokens||0} tokens
-          &nbsp;·&nbsp; <span class="save">~${(cost.saving_eur||0).toFixed(2)} € économisés</span> (ticket humain évité)`;
-      } else {
-        costHtml=`Pré-qualification : <span class="big">${(cost.llm_cost_eur||0).toFixed(5)} €</span>
-          &nbsp;·&nbsp; coût humain estimé : ${(cost.human_cost_eur||0).toFixed(2)} €`;
+  let last = performance.now();
+  const finish = () => { busy = false; sendBtn.disabled = false; live.remove(); };
+
+  const es = new EventSource("/api/ask?question=" + encodeURIComponent(question));
+
+  es.onmessage = (e) => {
+    let d;
+    try { d = JSON.parse(e.data); } catch { return; }
+
+    if (d.type === "step") {
+      const now = performance.now();
+      const ms = Math.round(now - last);
+      last = now;
+      const meta = NODES[d.node] || {n:"•", label:d.node};
+
+      const el = document.createElement("div");
+      el.className = "step";
+      el.innerHTML =
+        `<div class="num">${meta.n}</div>
+         <div class="body">
+           <div class="name"><span></span><span class="node"></span><span class="ms">${ms} ms</span></div>
+         </div>`;
+      el.querySelector(".name span").textContent = meta.label;
+      el.querySelector(".node").textContent = d.node;
+      if (d.detail) {
+        const det = document.createElement("div");
+        det.className = "det";
+        det.textContent = d.detail;
+        el.querySelector(".body").appendChild(det);
       }
-      wrap.innerHTML=`
-        <div class="answer"></div>
-        <div class="meta">
-          <span class="pill dec-${dec}">${DEC[dec]||dec}</span>
-          <span class="src">Sources : ${(d.sources||[]).join(", ")||"—"}${d.score!=null?"  ·  similarité "+d.score.toFixed(3):""}</span>
-        </div>
-        <div class="cost">${costHtml}</div>`;
-      wrap.querySelector(".answer").textContent=d.answer||"";
-      card.appendChild(wrap);
-    } else if(d.type==="error"){
-      live.remove(); es.close(); busy=false; send.disabled=false;
-      const el=document.createElement("div"); el.className="answer";
-      el.style.borderColor="var(--red)"; el.textContent="Erreur : "+d.message;
-      card.appendChild(el);
+      steps.insertBefore(el, live);
+
+    } else if (d.type === "done") {
+      es.close(); finish();
+
+      const cost = d.cost || {};
+      const dec  = cost.resolution || d.decision || "answered";
+
+      const out = document.createElement("div");
+      out.className = "out";
+
+      const ans = document.createElement("div");
+      ans.className = "answer is-" + dec;
+      ans.textContent = d.answer || "—";
+      out.appendChild(ans);
+
+      const tags = document.createElement("div");
+      tags.className = "tags";
+      const pill = document.createElement("span");
+      pill.className = "pill " + dec;
+      pill.textContent = DECISION[dec] || dec;
+      tags.appendChild(pill);
+
+      const src = document.createElement("span");
+      src.className = "src";
+      const names = (d.sources || []);
+      src.innerHTML = names.length
+        ? "Sources : " + names.map(n => `<b>${n.replace(/[<>&]/g, "")}</b>`).join(", ")
+        : "Aucune source retenue";
+      if (d.score != null) src.innerHTML += " · similarité " + d.score.toFixed(3);
+      tags.appendChild(src);
+      out.appendChild(tags);
+
+      const bar = document.createElement("div");
+      bar.className = "costbar";
+      const tokens = `${cost.input_tokens || 0} <small>in</small> · ${cost.output_tokens || 0} <small>out</small>`;
+      bar.innerHTML =
+        `<div class="cell"><div class="k">Tokens</div><div class="v">${tokens}</div></div>
+         <div class="cell"><div class="k">Coût LLM</div><div class="v accent">${eur(cost.llm_cost_eur)}</div></div>` +
+        (dec === "answered"
+          ? `<div class="cell"><div class="k">Ticket évité</div><div class="v green">${eur(cost.saving_eur, 2)}</div></div>`
+          : `<div class="cell"><div class="k">Coût humain engagé</div><div class="v">${eur(cost.human_cost_eur, 2)}</div></div>`);
+      out.appendChild(bar);
+
+      card.appendChild(out);
+
+      stats.total++;
+      if (dec === "answered") stats.answered++; else stats.deflected++;
+      stats.cost += (cost.llm_cost_eur || 0);
+      refreshStats();
+
+    } else if (d.type === "error") {
+      es.close(); finish();
+      const out = document.createElement("div");
+      out.className = "out";
+      const err = document.createElement("div");
+      err.className = "answer is-error";
+      err.textContent = "Erreur : " + d.message;
+      out.appendChild(err);
+      card.appendChild(out);
     }
   };
-  es.onerror=()=>{ es.close(); if(busy){ live.remove(); busy=false; send.disabled=false; } };
 
-  input.value="";
+  es.onerror = () => {
+    es.close();
+    if (busy) {
+      finish();
+      const out = document.createElement("div");
+      out.className = "out";
+      const err = document.createElement("div");
+      err.className = "answer is-error";
+      err.textContent = "Connexion interrompue avec le serveur.";
+      out.appendChild(err);
+      card.appendChild(out);
+    }
+  };
+
+  input.value = "";
 }
-send.onclick=run;
-input.addEventListener("keydown",e=>{ if(e.key==="Enter") run(); });
+
+sendBtn.onclick = run;
+input.addEventListener("keydown", (e) => {
+  if (e.key === "Enter" && !e.shiftKey) { e.preventDefault(); run(); }
+});
+input.focus();
 </script>
 </body>
 </html>
