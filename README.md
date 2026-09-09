@@ -24,7 +24,9 @@ Question client ───┼─ OUVRE UN TICKET  hors périmètre, pas urgent
 
 Il n'y a pas de quatrième porte. L'agent ne peut pas répondre à côté : soit il s'appuie sur un passage de la doc, soit il passe la main.
 
-En amont, un triage écarte ce qui n'est pas une demande. Un « bonjour » reçoit un accueil immédiat — pas une recherche documentaire, pas un appel au modèle, et surtout pas un ticket ouvert pour rien.
+En amont, un triage écarte ce qui n'est pas une demande. « Bonjour », « cv ? », « ok », « merci », « t'es un robot ? » reçoivent une réponse immédiate — pas de recherche documentaire, pas d'appel au modèle, et surtout pas de ticket ouvert pour rien.
+
+La règle est asymétrique, et c'est volontaire : **un seul mot métier suffit à basculer dans le RAG.** Rater un « bonjour » coûte un appel LLM ; classer « mon colis est bloqué » comme de la politesse coûte un client jamais traité.
 
 ## Comment c'est construit
 
@@ -32,7 +34,7 @@ Un graphe [LangGraph](src/support_agent/agent/graph.py) à six étapes, chacune 
 
 | Étape | Rôle |
 |---|---|
-| **triage** | Sépare une vraie demande d'un simple « bonjour » ou « merci ». La politesse reçoit une réponse directe, sans recherche ni appel au modèle |
+| **triage** | Sépare une vraie demande de ce qui n'en est pas : salutation, remerciement, acquiescement, excuse, adieu, question sur l'agent (« t'es un robot ? »), message vide de mots (emoji seul). Chaque cas reçoit une réponse directe, sans recherche ni appel au modèle |
 | **retrieve** | Cherche les 4 passages les plus proches de la question dans un index vectoriel FAISS |
 | **grade** | Garde-fou n°1 : si le meilleur passage est trop loin, on n'appelle même pas le LLM |
 | **generate** | Le LLM rédige **uniquement** à partir des passages trouvés. S'il n'a pas l'info, il doit écrire `INSUFFISANT` |
@@ -44,7 +46,7 @@ Un graphe [LangGraph](src/support_agent/agent/graph.py) à six étapes, chacune 
 - **La recherche tourne en local, seule la rédaction part chez DeepSeek.** Les embeddings (`sentence-transformers`) sont calculés sur la machine : gratuits, rapides, et les documents ne quittent pas l'infrastructure. DeepSeek ne voit que les 4 extraits nécessaires.
 - **Le routage ticket/escalade est déterministe, pas confié au LLM.** Sur une décision d'escalade, un client fraudé mis en file asynchrone est un incident. Une règle explicite est auditable et gratuite. Les actions sont déjà encapsulées en outils LangChain (`@tool`) pour basculer en tool-calling le jour où la taxonomie l'exige.
 - **Pour une FAQ, on indexe la question, pas la question + la réponse.** Le client pose une question : comparer une question à une question est bien plus précis que la comparer à un bloc où la réponse dilue le sens. Le LLM reçoit quand même la réponse complète comme contexte. Gain mesuré : rappel@1 de 9/20 à 14/20.
-- **Quand `grade` rejette — ou quand le triage reconnaît une salutation — zéro token est dépensé.** Les garde-fous sont aussi des optimisations de coût.
+- **Quand `grade` rejette — ou quand le triage reconnaît un message conversationnel — zéro token est dépensé.** Les garde-fous sont aussi des optimisations de coût.
 
 ## Résultats mesurés
 
@@ -56,11 +58,11 @@ Un graphe [LangGraph](src/support_agent/agent/graph.py) à six étapes, chacune 
 | **Réponses inventées (hallucinations)** | **0** |
 | Questions du périmètre traitées | **12 / 12** |
 | Urgences et litiges escaladés vers un appel | 2 / 2 |
-| Salutations traitées sans appel au modèle | 5 / 5 *(0 token, 2 ms)* |
+| Messages conversationnels traités sans appel au modèle | 5 / 5 *(0 token, 2 ms)* |
 | Bon passage dans les 4 résultats de recherche | 17 / 20 |
 | Coût moyen d'une réponse | **0,0014 €** |
 | Latence médiane bout en bout | 3,3 s |
-| Tests automatisés | 31 ✅ |
+| Tests automatisés | 160 ✅ |
 
 **Ce que ces chiffres disent vraiment.** Le résultat qui compte est le premier : sur « quel est votre chiffre d'affaires ? » ou « quelle est la composition chimique de vos t-shirts ? », l'agent n'a jamais bluffé — il a ouvert un ticket.
 

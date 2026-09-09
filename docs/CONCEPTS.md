@@ -16,7 +16,7 @@ exemples.
 **A quoi ca sert.** A generer du texte en langage naturel. Dans un support
 client, c'est lui qui redige la reponse finale, propre et polie.
 
-**Dans le projet.** On appelle DeepSeek (`deepseek-chat`) via le SDK compatible
+**Dans le projet.** On appelle DeepSeek (`deepseek-v4-pro`) via le SDK compatible
 OpenAI. Le LLM n'intervient qu'a l'etape de generation, et seulement a partir
 des documents qu'on lui donne. Voir `src/support_agent/llm.py`.
 
@@ -77,13 +77,30 @@ cles. C'est ce qui permet de retrouver le bon passage meme quand le client
 formule sa question autrement que la FAQ.
 
 **Dans le projet.** On calcule les embeddings avec `sentence-transformers`
-(modele `all-MiniLM-L6-v2`), en local et gratuitement. Un repli en TF-IDF
+(modele `paraphrase-multilingual-MiniLM-L12-v2`), en local et gratuitement.
+Un repli en TF-IDF
 (scikit-learn) existe pour tourner sans aucun telechargement. Voir
 `ingestion/vectorstore.py`.
 
 **A savoir :** DeepSeek n'a pas d'API d'embeddings. Faire les embeddings en local
 est donc un vrai choix d'archi : gratuit, rapide, et confidentiel (les documents
 ne partent pas chez un tiers).
+
+**La lecon apprise sur ce projet, et le meilleur recit d'entretien.** Le modele
+initial etait `all-MiniLM-L6-v2`, entraine principalement sur de l'anglais,
+applique a un corpus francais. Symptome : "justificatif pour ma **compta**"
+remontait "Comment creer un **compte** ?". Le modele comparait la ressemblance
+des mots, pas le sens. Deux corrections mesurees sur 20 reformulations
+annotees : passage a un modele multilingue, et indexation de la **question
+seule** au lieu du bloc question + reponse (le client pose une question :
+comparer une question a une question est plus precis, et le LLM recoit quand
+meme la reponse complete comme contexte). Rappel@4 : 11/20 -> 17/20. Couverture
+bout en bout : 8/12 -> 12/12, sans toucher au prompt.
+
+**Ce que ca prouve en entretien :** quand un RAG repond mal, le reflexe
+"j'ajoute des documents" ou "je retouche le prompt" est souvent le mauvais. Il
+faut d'abord mesurer OU la chaine casse. Ici c'etait la recherche, et aucun
+ajout de FAQ ne l'aurait corrige.
 
 ---
 
@@ -121,6 +138,13 @@ frontiere.
 metier : une entree de FAQ (une question + sa reponse) est deja une unite de
 sens, donc on ne la redecoupe pas. Voir `ingestion/chunking.py`.
 
+**Une subtilite qui compte.** Chaque chunk porte deux textes : `text`, ce qu'on
+donne au LLM comme contexte (question + reponse complete), et `embed_text`, ce
+qu'on indexe pour la recherche. Pour une FAQ, on indexe la **question seule**.
+Le client pose une question : comparer une question a une question est plus
+precis que la comparer a un bloc ou la reponse dilue le sens. Mesure : rappel@1
+de 9/20 a 14/20.
+
 ---
 
 ## OCR (Reconnaissance optique de caracteres)
@@ -156,6 +180,38 @@ etape" en entretien : on montre qu'on connait la difference OCR / VLM.
 
 **La distinction a retenir :** OCR = lire les lettres d'une image. VLM =
 comprendre le contenu d'une image.
+
+---
+
+## Triage d'intention
+
+**C'est quoi.** Classer le message AVANT de lancer la machinerie : est-ce une
+vraie demande de support, ou juste de la conversation ?
+
+**A quoi ca sert.** Un agent de support ne recoit pas que des questions. Il
+recoit des "bonjour", des "merci", des "ok", des "cv ?", des "t'es un robot ?".
+Sans triage, ces messages traversent tout le pipeline RAG, declenchent un appel
+LLM facture, et finissent en ticket ouvert pour un simple bonjour. En
+demonstration c'est ridicule ; en production ca pollue la file du support.
+
+**Dans le projet.** Un noeud `triage` en tete de graphe (`agent/triage.py`).
+On retire du message la politesse et les mots outils : s'il ne reste rien, c'est
+de la conversation et on repond directement, sans recherche ni appel au modele
+(0 token, environ 2 ms). Sept familles sont reconnues : salutation,
+remerciement, acquiescement, excuse, adieu, question sur l'agent lui-meme, et
+message sans aucun mot (emoji seul). Quand plusieurs cohabitent, une priorite
+tranche : "merci, bonne journee" est un adieu, "ca va bien ?" une salutation.
+
+**La regle est volontairement asymetrique.** Un seul mot metier suffit a
+basculer dans le RAG. "ok mais mon colis est ou ?" est une demande, pas un
+acquiescement. La raison : rater un "bonjour" coute un appel LLM inutile, mais
+classer "mon colis est bloque" comme de la politesse coute un client jamais
+traite. Les deux erreurs ne se valent pas, donc le seuil de decision n'est pas
+symetrique.
+
+**A savoir dire :** c'est deterministe et gratuit, pas un appel de
+classification a un LLM. Sur ce genre de decision, une regle lisible et
+testable vaut mieux qu'un modele probabiliste qu'on paie a chaque message.
 
 ---
 
@@ -237,9 +293,9 @@ arbre de decisions (si le contexte est bon alors repondre, sinon escalader),
 LangGraph rend ce flux **lisible, testable et controlable**. On voit le chemin
 exact suivi pour chaque question.
 
-**Dans le projet.** Le graphe (dans `agent/graph.py`) a cinq noeuds : retrieve,
-grade, generate, handle_fallback, finalize. Deux branchements conditionnels
-decident du chemin. C'est le squelette de tout l'agent.
+**Dans le projet.** Le graphe (dans `agent/graph.py`) a six noeuds : triage,
+retrieve, grade, generate, handle_fallback, finalize. Trois branchements
+conditionnels decident du chemin. C'est le squelette de tout l'agent.
 
 **LangChain vs LangGraph, la phrase qui clarifie :** "LangChain donne les
 briques, LangGraph donne le plan de montage avec les embranchements."
@@ -266,7 +322,9 @@ presque le cout complet d'un traitement humain. Voir `cost/tracker.py`.
 
 ## Recapitulatif du flux (a savoir raconter)
 
-Une question arrive. On la transforme en vecteur (embedding) et on cherche dans
+Une question arrive. On verifie d'abord que c'est bien une demande et non un
+"bonjour" (triage) : si c'en est un, on repond directement, sans depenser un
+seul token. Sinon, on la transforme en vecteur (embedding) et on cherche dans
 l'index FAISS les passages les plus proches (RAG, retrieve). On verifie leur
 pertinence (grade) : si c'est trop faible, on ne prend pas de risque et on
 escalade. Sinon, on donne ces passages au LLM avec un prompt strict qui lui
@@ -299,6 +357,20 @@ appel.
 OCR (Tesseract) pour extraire le texte des PDF scannes. Pour les visuels
 complexes ou les images clients, l'evolution naturelle est un VLM qui comprend
 l'image, pas seulement les caracteres.
+
+**"Ton RAG repond mal a une question pourtant couverte. Tu fais quoi ?"**
+Je mesure avant de corriger. J'ai construit un petit jeu de reformulations
+annotees (question -> passage attendu) et regarde le rappel@4 : le bon passage
+est-il dans les resultats ? Sur ce projet la reponse etait non, et la cause
+etait le modele d'embeddings anglophone sur un corpus francais — ni le prompt,
+ni le manque de documents. Rappel@4 de 11/20 a 17/20 apres correction.
+
+**"Et si l'utilisateur ecrit juste 'bonjour' ?"**
+Un noeud de triage en tete de graphe repond directement, sans recherche ni
+appel LLM. Sans ca, un bonjour coute un appel facture et ouvre un ticket. La
+regle est asymetrique a dessein : un seul mot metier suffit a basculer dans le
+RAG, parce qu'une vraie demande classee comme politesse est bien plus grave
+qu'un bonjour traite comme une demande.
 
 **"Comment tu mesures que le RAG est bon ?"**
 On regarde le score de recuperation, le taux de reponses vs escalades, et la
